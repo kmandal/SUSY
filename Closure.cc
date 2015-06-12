@@ -14,6 +14,7 @@
 #include "SusyAnaTools/Tools/samples.h"
 #include "SusyAnaTools/Tools/customize.h"
 #include "SusyAnaTools/Tools/baselineDef.h"
+#include "SusyAnaTools/Tools/searchBins.h"
 #include "TStopwatch.h"
 #include "TString.h"
 #include "SusyAnaTools/Tools/NTupleReader.h"
@@ -34,7 +35,7 @@
 
 using namespace std;
 
-static const int nSR = 1;
+static const int nSB = 48;
 
 void passBaselineFunc1(NTupleReader &tr)
 {
@@ -156,9 +157,8 @@ int main(int argc, char* argv[]) {
   std::cout<<"First loop begin: "<<std::endl;
 
   int entries = tr.getNEntries();
-  std::cout<<"\nentries : "<<entries<<std::endl;
-
-  std::vector<double> trueVec(nSR), predVec(nSR), pred_from_taumuVec(nSR);
+  std::cout<<"\nentries : "<<entries<<std::endl; 
+  std::vector<double> pred_from_taumuVec(49);
   int cnt_nomtw=0,cnt_mtw=0;
 
   // Loop over the events (tree entries)
@@ -204,19 +204,19 @@ int main(int argc, char* argv[]) {
     // ] W->tau->had, W->qq
     // ] W->tau->had, W->e/mu (e or mu is lost)
     if(W_tau_prongsVec.size() !=0 && passBaseline_tru){
-// Currently only one signal region which is the baseline
-// In the future, this can extend to more regions
-
-       int iSR = 0;
-       trueVec[iSR] ++;
-
-       myBaseHistgram.hTrueHt->Fill(ht);
-       myBaseHistgram.hTruemet->Fill(met);
-       myBaseHistgram.hTrueNJets->Fill(nJets_tru);
-       myBaseHistgram.hTrueNbJets->Fill(nbJets_tru);
-       myBaseHistgram.hTrueNTops->Fill(nTops_tru);
-       myBaseHistgram.hTrueMT2->Fill(MT2_tru);
-       myBaseHistgram.hTruemTcomb->Fill(mTcomb_tru);
+      int jSR = find_Binning_Index(nbJets_tru, nTops_tru, MT2_tru, met);
+      if( jSR!= -1 && (jSR>=0 && jSR<48)) {
+	myBaseHistgram.hTrueYields->Fill(jSR);
+      }
+      myBaseHistgram.hTrueYields->Fill(48);
+    
+      myBaseHistgram.hTrueHt->Fill(ht);
+      myBaseHistgram.hTruemet->Fill(met);
+      myBaseHistgram.hTrueNJets->Fill(nJets_tru);
+      myBaseHistgram.hTrueNbJets->Fill(nbJets_tru);
+      myBaseHistgram.hTrueNTops->Fill(nTops_tru);
+      myBaseHistgram.hTrueMT2->Fill(MT2_tru);
+      myBaseHistgram.hTruemTcomb->Fill(mTcomb_tru);
     }
 
     //Prediction part
@@ -400,12 +400,17 @@ int main(int argc, char* argv[]) {
   const double corr = corrBRWToTauHad * corrMuAcc * corrMuRecoEff * corrMuIsoEff * corrmtWEff;
 
 // iSR: this should be determined by search region requirement
-// Now we have only one bin which is the baseline
-      int iSR = 0;
-
-      predVec[iSR] += corr;
-      if( istaumu_genRecoMatch ) pred_from_taumuVec[iSR] += corr;
-
+  int kSR = find_Binning_Index(cnt1CSVS, nTopCandSortedCnt_pre, MT2_pre, simmet);
+  if( !istaumu_genRecoMatch && pass_mtw){
+    if( kSR!=-1 && (kSR>=0 && kSR<48)) {
+    myBaseHistgram.hPredYields->Fill(kSR,corr);
+  }
+ myBaseHistgram.hPredYields->Fill(48,corr);
+  }
+ if( istaumu_genRecoMatch ){
+   pred_from_taumuVec[48] += corr;
+   if(kSR!=-1 && (kSR>=0 && kSR<48)) pred_from_taumuVec[kSR] += corr;
+ }
       // Fill the prediction
       if( !istaumu_genRecoMatch && pass_mtw){
          myBaseHistgram.hPredHt->Fill(simHt,corr);
@@ -424,7 +429,6 @@ int main(int argc, char* argv[]) {
 
   drawOverFlowBin(myBaseHistgram.hPredmet);
   drawOverFlowBin(myBaseHistgram.hTruemet);
-  std::cout<<"newlastbin:"<<myBaseHistgram.hPredmet->GetBinContent(myBaseHistgram.hPredmet->GetXaxis()->GetNbins())<<std::endl;
   drawOverFlowBin(myBaseHistgram.hPredMT2);
   drawOverFlowBin(myBaseHistgram.hTrueMT2);
   drawOverFlowBin(myBaseHistgram.hPredNbJets);
@@ -433,11 +437,11 @@ int main(int argc, char* argv[]) {
 
 // This print out can be used to extract the corrBRTauToMu ratio
   std::cout<<"\nPrediction in numbers ..."<<std::endl;
-  for(unsigned int ib=0; ib<nSR; ib++){
-     std::cout<<"ib : "<<ib<<"  true : "<<trueVec[ib]<<"  pred : "<<predVec[ib]<<"  from_taumu : "<<pred_from_taumuVec[ib]<<std::endl;
+  for(unsigned int ib=0; ib<=nSB; ib++){
+     std::cout<<"ib : "<<ib<<"  "<<pred_from_taumuVec[ib]<<std::endl;
   }
   std::cout<<std::endl;
-
+  std::cout<<"True: "<<myBaseHistgram.hTrueYields->GetBinContent(49)<<"   "<<"Prediction: "<<myBaseHistgram.hPredYields->GetBinContent(49)<<std::endl;
   std::cout<<cnt_nomtw<<"  "<<cnt_mtw<<std::endl;
   return 0;
 }
